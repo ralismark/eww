@@ -15,7 +15,7 @@ use gtk::{self, glib, prelude::*, DestDefaults, TargetEntry, TargetList};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 
-use crate::widgets::system_tray::{SystemTrayProps, maintain_menubar};
+use crate::widgets::system_tray::{maintain_menubar, SystemTrayProps};
 use std::{
     cell::RefCell,
     cmp::Ordering,
@@ -867,7 +867,11 @@ fn build_gtk_label(bargs: &mut BuilderArgs) -> Result<gtk::Label> {
         // @prop xalign - the alignment of the label text on the x axis (between 0 - 1, 0 -> left, 0.5 -> center, 1 -> right)
         prop(xalign: as_f64 = 0.5) { gtk_widget.set_xalign(xalign as f32) },
         // @prop yalign - the alignment of the label text on the y axis (between 0 - 1, 0 -> bottom, 0.5 -> center, 1 -> top)
-        prop(yalign: as_f64 = 0.5) { gtk_widget.set_yalign(yalign as f32) }
+        prop(yalign: as_f64 = 0.5) { gtk_widget.set_yalign(yalign as f32) },
+        // @prop justify - the justification of the label text (left, right, center, fill)
+        prop(justify: as_string = "left") {
+            gtk_widget.set_justify(parse_justification(&justify)?);
+        },
     });
     Ok(gtk_widget)
 }
@@ -931,7 +935,7 @@ fn build_gtk_calendar(bargs: &mut BuilderArgs) -> Result<gtk::Calendar> {
     def_widget!(bargs, _g, gtk_widget, {
         // @prop day - the selected day
         prop(day: as_f64) {
-            if day < 1f64 || day > 31f64 {
+            if !(1f64..=31f64).contains(&day) {
                 log::warn!("Calendar day is not a number between 1 and 31");
             } else {
                 gtk_widget.set_day(day as i32)
@@ -939,7 +943,7 @@ fn build_gtk_calendar(bargs: &mut BuilderArgs) -> Result<gtk::Calendar> {
         },
         // @prop month - the selected month
         prop(month: as_f64) {
-            if month < 1f64 || month > 12f64 {
+            if !(1f64..=12f64).contains(&month) {
                 log::warn!("Calendar month is not a number between 1 and 12");
             } else {
                 gtk_widget.set_month(month as i32 - 1)
@@ -1084,6 +1088,16 @@ fn parse_align(o: &str) -> Result<gtk::Align> {
         "center" => gtk::Align::Center,
         "start" => gtk::Align::Start,
         "end" => gtk::Align::End,
+    }
+}
+
+/// @var justification - "left", "right", "center", "fill"
+fn parse_justification(j: &str) -> Result<gtk::Justification> {
+    enum_parse! { "justification", j,
+        "left" => gtk::Justification::Left,
+        "right" => gtk::Justification::Right,
+        "center" => gtk::Justification::Center,
+        "fill" => gtk::Justification::Fill,
     }
 }
 

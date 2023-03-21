@@ -23,6 +23,7 @@ Supported currently are the following features:
 - simple mathematical operations (`+`, `-`, `*`, `/`, `%`)
 - comparisons (`==`, `!=`, `>`, `<`, `<=`, `>=`)
 - boolean operations (`||`, `&&`, `!`)
+- regex match operator (`=~`)
 - elvis operator (`?:`)
     - if the left side is `""` or a JSON `null`, then returns the right side,
       otherwise evaluates to the left side.
@@ -45,4 +46,4 @@ Supported currently are the following features:
 	- `strlength(value)`: Gets the length of the string
 	- `arraylength(value)`: Gets the length of the array
 	- `objectlength(value)`: Gets the amount of entries in the object
-
+	- `jq(value, jq_filter_string)`: run a [jq](https://stedolan.github.io/jq/manual/) style command on a json value. (Uses [jaq](https://crates.io/crates/jaq) internally).
