@@ -6,10 +6,16 @@ All notable changes to eww will be listed here, starting at changes since versio
 ## [Unreleased]
 
 ### Features
+- Add `:namespace` window option
+- Default to building with x11 and wayland support simultaneously
+- Add `truncate-left` property on `label` widgets (By: kawaki-san)
 - Add support for safe access (`?.`) in simplexpr (By: oldwomanjosiah)
 - Allow floating-point numbers in percentages for window-geometry
 - Add support for safe access with index (`?.[n]`) (By: ModProg)
 - Made `and`, `or` and `?:` lazily evaluated in simplexpr (By: ModProg)
+- Add Vanilla CSS support (By: Ezequiel Ramis)
+- Add `jq` function, offering jq-style json processing
+- Add `justify` property to the label widget, allowing text justification (By: n3oney)
 
 ## [0.4.0] (04.09.2022)
 

@@ -1,16 +1,13 @@
-use codespan_reporting::{diagnostic, files};
+use codespan_reporting::diagnostic;
 use itertools::Itertools;
 use simplexpr::dynval;
 
 use diagnostic::*;
 
-use crate::{
-    config::{attributes::AttrError, config, validate::ValidationError},
-    error::{get_parse_error_span, DiagError},
-};
+use crate::config::{attributes::AttrError, validate::ValidationError};
 
 use super::parser::parse_error;
-use eww_shared_util::{AttrName, Span, Spanned, VarName};
+use eww_shared_util::{Span, Spanned};
 
 pub fn span_to_primary_label(span: Span) -> Label<usize> {
     Label::primary(span.2, span.0..span.1)
@@ -103,7 +100,7 @@ impl ToDiagnostic for AttrError {
             AttrError::MissingRequiredAttr(span, attr_name) => {
                 gen_diagnostic!(format!("Missing attribute `{}`", attr_name), span)
             }
-            AttrError::EvaluationError(span, source) => source.to_diagnostic(),
+            AttrError::EvaluationError(_span, source) => source.to_diagnostic(),
             AttrError::Other(span, source) => gen_diagnostic!(source, span),
         }
     }
@@ -145,7 +142,7 @@ impl ToDiagnostic for ValidationError {
 
                 diag.with_notes(extra_notes)
             }
-            ValidationError::AccidentalBuiltinOverride(span, widget_name) => gen_diagnostic! {
+            ValidationError::AccidentalBuiltinOverride(span, _widget_name) => gen_diagnostic! {
                 msg = self,
                 label = span => "Defined here",
                 note = "Hint: Give your widget a different name. You could call it \"John\" for example. That's a cool name."
@@ -166,11 +163,11 @@ pub fn lalrpop_error_to_diagnostic<T: std::fmt::Display, E: Spanned + ToDiagnost
     use lalrpop_util::ParseError::*;
     match error {
         InvalidToken { location } => gen_diagnostic!("Invalid token", Span::point(*location, file_id)),
-        UnrecognizedEOF { location, expected } => gen_diagnostic! {
+        UnrecognizedEOF { location, expected: _ } => gen_diagnostic! {
             msg = "Input ended unexpectedly. Check if you have any unclosed delimiters",
             label = Span::point(*location, file_id),
         },
-        UnrecognizedToken { token, expected } => gen_diagnostic! {
+        UnrecognizedToken { token, expected: _ } => gen_diagnostic! {
             msg = format!("Unexpected token `{}` encountered", token.1),
             label = Span(token.0, token.2, file_id) => "Token unexpected",
         },
@@ -187,10 +184,10 @@ impl ToDiagnostic for simplexpr::parser::lexer::LexicalError {
 
 impl ToDiagnostic for simplexpr::eval::EvalError {
     fn to_diagnostic(&self) -> Diagnostic<usize> {
-        use simplexpr::eval::EvalError::*;
+        use simplexpr::eval::EvalError;
         match self {
-            NoVariablesAllowed(name) => gen_diagnostic!(self),
-            UnknownVariable(name, similar) => {
+            EvalError::NoVariablesAllowed(_name) => gen_diagnostic!(self),
+            EvalError::UnknownVariable(name, similar) => {
                 let mut notes = Vec::new();
                 if similar.len() == 1 {
                     notes.push(format!("Did you mean `{}`?", similar.first().unwrap()))
@@ -202,7 +199,22 @@ impl ToDiagnostic for simplexpr::eval::EvalError {
                 notes.push(format!("Hint: If you meant to use the literal value \"{}\", surround the value in quotes", name));
                 gen_diagnostic!(self).with_notes(notes)
             }
-            Spanned(span, error) => error.as_ref().to_diagnostic().with_label(span_to_primary_label(*span)),
+            EvalError::Spanned(span, box EvalError::JaqParseError(simplexpr::eval::JaqParseError(Some(err)))) => {
+                let span = span.new_relative(err.span().start, err.span().end).shifted(1);
+                let mut diag = gen_diagnostic!(self, span);
+
+                if let Some(label) = err.label() {
+                    diag = diag.with_label(span_to_secondary_label(span).with_message(label));
+                }
+
+                let expected: Vec<_> = err.expected().filter_map(|x| x.clone()).sorted().collect();
+                if !expected.is_empty() {
+                    let label = format!("Expected one of {} here", expected.join(", "));
+                    diag = diag.with_label(span_to_primary_label(span).with_message(label));
+                }
+                diag
+            }
+            EvalError::Spanned(span, error) => error.as_ref().to_diagnostic().with_label(span_to_primary_label(*span)),
             _ => gen_diagnostic!(self, self.span()),
         }
     }

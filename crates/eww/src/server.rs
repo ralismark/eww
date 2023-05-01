@@ -1,6 +1,8 @@
 use crate::{
     app::{self, DaemonCommand},
-    config, daemon_response, error_handling_ctx, ipc_server, script_var_handler,
+    config, daemon_response,
+    display_backend::DisplayBackend,
+    error_handling_ctx, ipc_server, script_var_handler,
     state::scope_graph::ScopeGraph,
     EwwPaths,
 };
@@ -16,7 +18,12 @@ use std::{
 };
 use tokio::sync::mpsc::*;
 
-pub fn initialize_server(paths: EwwPaths, action: Option<DaemonCommand>, should_daemonize: bool) -> Result<ForkResult> {
+pub fn initialize_server<B: DisplayBackend>(
+    paths: EwwPaths,
+    action: Option<DaemonCommand>,
+    display_backend: B,
+    should_daemonize: bool,
+) -> Result<ForkResult> {
     let (ui_send, mut ui_recv) = tokio::sync::mpsc::unbounded_channel();
 
     std::env::set_current_dir(&paths.get_config_dir())
@@ -66,6 +73,7 @@ pub fn initialize_server(paths: EwwPaths, action: Option<DaemonCommand>, should_
     let (scope_graph_evt_send, mut scope_graph_evt_recv) = tokio::sync::mpsc::unbounded_channel();
 
     let mut app = app::App {
+        display_backend,
         scope_graph: Rc::new(RefCell::new(ScopeGraph::from_global_vars(
             eww_config.generate_initial_state()?,
             scope_graph_evt_send,
@@ -83,7 +91,7 @@ pub fn initialize_server(paths: EwwPaths, action: Option<DaemonCommand>, should_
         gtk::StyleContext::add_provider_for_screen(&screen, &app.css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
     }
 
-    if let Ok((file_id, css)) = config::scss::parse_scss_from_file(&app.paths.get_eww_scss_path()) {
+    if let Ok((file_id, css)) = config::scss::parse_scss_from_config(app.paths.get_config_dir()) {
         if let Err(e) = app.load_css(file_id, &css) {
             error_handling_ctx::print_error(e);
         }
@@ -169,7 +177,7 @@ async fn run_filewatch<P: AsRef<Path>>(config_dir: P, evt_send: UnboundedSender<
         Ok(notify::Event { kind: notify::EventKind::Modify(_), paths, .. }) => {
             let relevant_files_changed = paths.iter().any(|path| {
                 let ext = path.extension().unwrap_or_default();
-                ext == "yuck" || ext == "scss"
+                ext == "yuck" || ext == "scss" || ext == "css"
             });
             if relevant_files_changed {
                 if let Err(err) = tx.send(()) {
