@@ -158,8 +158,21 @@ impl Item {
     }
 
     pub async fn icon(&self, size: i32) -> std::result::Result<gtk::gdk_pixbuf::Pixbuf, IconError> {
-        let icon_name = self.sni.icon_name().await?;
-        let icon_theme_path = self.sni.icon_theme_path().await?;
+        let icon_name = match self.sni.icon_name().await {
+            Ok(icon_name) => icon_name,
+            Err(e) => {
+                log::warn!("Failed to get icon name: {}", e);
+                String::from("")
+            }
+        };
+
+        let icon_theme_path = match self.sni.icon_theme_path().await {
+            Ok(icon_theme_path) => icon_theme_path,
+            Err(e) => {
+                log::warn!("Failed to get icon theme path: {}", e);
+                String::from("")
+            }
+        };
 
         if icon_theme_path != "" {
             // icon supplied a theme path, so only look there
