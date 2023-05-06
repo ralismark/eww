@@ -132,6 +132,32 @@ pub enum IconError {
 }
 
 impl Item {
+    pub fn load_pixbuf(width: i32, height: i32, mut data: Vec<u8>) -> gtk::gdk_pixbuf::Pixbuf {
+        // We need to convert data from ARGB32 to RGBA32
+        for chunk in data.chunks_mut(4) {
+            let a = chunk[0];
+            let r = chunk[1];
+            let g = chunk[2];
+            let b = chunk[3];
+            chunk[0] = r;
+            chunk[1] = g;
+            chunk[2] = b;
+            chunk[3] = a;
+        }
+
+        let pixbuf = gtk::gdk_pixbuf::Pixbuf::from_bytes(
+            &gtk::glib::Bytes::from_owned(data),
+            gtk::gdk_pixbuf::Colorspace::Rgb,
+            true,
+            8,
+            width,
+            height,
+            width * 4,
+        );
+        
+        pixbuf
+    }
+
     pub fn load_pixmap(width: i32, height: i32, mut data: Vec<u8>) -> gtk::Image {
         // We need to convert data from ARGB32 to RGBA32
         for chunk in data.chunks_mut(4) {
@@ -198,7 +224,18 @@ impl Item {
         }
 
         // "Visualizations are encouraged to prefer icon names over icon pixmaps if both are available."
-        // TODO icon_pixmap
+        if let Ok(icon_data) = self.sni.icon_pixmap().await {
+             for pixmap_data in icon_data {
+                let width = pixmap_data.0;
+                let height = pixmap_data.1;
+
+                if width != 24 {
+                    continue;
+                }
+
+                return Ok(Self::load_pixbuf(width, height, pixmap_data.2))
+            }
+        };
 
         // fallback to default icon
         let theme = gtk::IconTheme::default().expect("Could not get default gtk theme");
