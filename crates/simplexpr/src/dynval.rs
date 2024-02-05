@@ -106,6 +106,14 @@ impl TryFrom<serde_json::Value> for DynVal {
     }
 }
 
+impl From<Vec<DynVal>> for DynVal {
+    fn from(v: Vec<DynVal>) -> Self {
+        let span = if let (Some(first), Some(last)) = (v.first(), v.last()) { first.span().to(last.span()) } else { Span::DUMMY };
+        let elements = v.into_iter().map(|x| x.as_string().unwrap()).collect::<Vec<_>>();
+        DynVal(serde_json::to_string(&elements).unwrap(), span)
+    }
+}
+
 impl From<std::time::Duration> for DynVal {
     fn from(d: std::time::Duration) -> Self {
         DynVal(format!("{}ms", d.as_millis()), Span::DUMMY)
@@ -166,6 +174,10 @@ impl DynVal {
 
     pub fn as_i32(&self) -> Result<i32> {
         self.0.parse().map_err(|e| ConversionError::new(self.clone(), "i32", e))
+    }
+
+    pub fn as_i64(&self) -> Result<i64> {
+        self.0.parse().map_err(|e| ConversionError::new(self.clone(), "i64", e))
     }
 
     pub fn as_bool(&self) -> Result<bool> {

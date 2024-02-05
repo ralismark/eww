@@ -81,9 +81,11 @@ pub fn initialize_server<B: DisplayBackend>(
         eww_config,
         open_windows: HashMap::new(),
         failed_windows: HashSet::new(),
+        instance_id_to_args: HashMap::new(),
         css_provider: gtk::CssProvider::new(),
         script_var_handler,
         app_evt_send: ui_send.clone(),
+        window_close_timer_abort_senders: HashMap::new(),
         paths,
     };
 
@@ -98,7 +100,7 @@ pub fn initialize_server<B: DisplayBackend>(
     }
 
     // initialize all the handlers and tasks running asyncronously
-    init_async_part(app.paths.clone(), ui_send);
+    let tokio_handle = init_async_part(app.paths.clone(), ui_send);
 
     glib::MainContext::default().spawn_local(async move {
         // if an action was given to the daemon initially, execute it first.
@@ -119,22 +121,26 @@ pub fn initialize_server<B: DisplayBackend>(
         }
     });
 
+    // allow the GTK main thread to do tokio things
+    let _g = tokio_handle.enter();
+
     gtk::main();
     log::info!("main application thread finished");
 
     Ok(ForkResult::Child)
 }
 
-fn init_async_part(paths: EwwPaths, ui_send: UnboundedSender<app::DaemonCommand>) {
+fn init_async_part(paths: EwwPaths, ui_send: UnboundedSender<app::DaemonCommand>) -> tokio::runtime::Handle {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .thread_name("main-async-runtime")
+        .enable_all()
+        .build()
+        .expect("Failed to initialize tokio runtime");
+    let handle = rt.handle().clone();
+
     std::thread::Builder::new()
         .name("outer-main-async-runtime".to_string())
         .spawn(move || {
-            let rt = tokio::runtime::Builder::new_multi_thread()
-                .thread_name("main-async-runtime")
-                .enable_all()
-                .build()
-                .expect("Failed to initialize tokio runtime");
-
             rt.block_on(async {
                 let filewatch_join_handle = {
                     let ui_send = ui_send.clone();
@@ -166,6 +172,8 @@ fn init_async_part(paths: EwwPaths, ui_send: UnboundedSender<app::DaemonCommand>
             })
         })
         .expect("Failed to start outer-main-async-runtime thread");
+
+    handle
 }
 
 /// Watch configuration files for changes, sending reload events to the eww app when the files change.

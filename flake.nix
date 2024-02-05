@@ -36,6 +36,8 @@
             src = builtins.path { name = "eww"; path = prev.lib.cleanSource ./.; };
             cargoDeps = rustPlatform.importCargoLock { lockFile = ./Cargo.lock; };
             patches = [ ];
+            # remove this when nixpkgs includes it
+            buildInputs = old.buildInputs ++ [ final.libdbusmenu-gtk3 ];
           });
 
           eww-wayland = final.eww.override { withWayland = true; };
@@ -61,6 +63,10 @@
               rust
               rust-analyzer-unwrapped
               gcc
+              glib
+              gdk-pixbuf
+              librsvg
+              libdbusmenu-gtk3
               gtk3
               gtk-layer-shell
               pkg-config

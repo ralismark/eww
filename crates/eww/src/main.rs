@@ -1,9 +1,10 @@
 #![feature(trace_macros)]
-#![feature(drain_filter)]
+#![feature(extract_if)]
 #![feature(box_patterns)]
 #![feature(slice_concat_trait)]
 #![feature(try_blocks)]
-#![feature(hash_drain_filter)]
+#![feature(hash_extract_if)]
+#![feature(let_chains)]
 #![allow(rustdoc::private_intra_doc_links)]
 
 extern crate gtk;
@@ -36,6 +37,8 @@ mod server;
 mod state;
 mod util;
 mod widgets;
+mod window_arguments;
+mod window_initiator;
 
 fn main() {
     let eww_binary_name = std::env::args().next().unwrap();
@@ -45,7 +48,10 @@ fn main() {
     if std::env::var("RUST_LOG").is_ok() {
         pretty_env_logger::init_timed();
     } else {
-        pretty_env_logger::formatted_timed_builder().filter(Some("eww"), log_level_filter).init();
+        pretty_env_logger::formatted_timed_builder()
+            .filter(Some("eww"), log_level_filter)
+            .filter(Some("notifier_host"), log_level_filter)
+            .init();
     }
 
     #[allow(unused)]
